@@ -175,6 +175,7 @@ ggplot(pdata, aes(x=Year, y=mean)) +
   ylab("")
 
 ```
+
 The Wilcoxon test is significant (p < 0,001). The plot shows that the rate of Black students dropped by the 2016-2017 school year, compared to the 1994-1995 school year (10.891 vs. 10.571), the the result is reverse.
 It means that the proportion of Black students decreased in 12 years in schools in the USA, which might indicate that the rate of other ethnic groups increased.
 ...
