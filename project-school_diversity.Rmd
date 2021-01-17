@@ -1,0 +1,180 @@
+---
+title: 'Stats with R - Project'
+author: "Vivien Tomacsek"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# School diversity in the USA: 1994 - 2016
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(tidytuesdayR)
+library(viridis)
+library(scales)
+```
+
+Data is from TidyTuesday
+https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-09-24
+
+```{r}
+tt_data <- tt_load("2019-09-24")
+school_diversity <- tt_data$school_diversity
+```
+
+## Exploratory data analysis
+
+The 2019-09-24 TidyTuesday dataset is about school diversity in the USA. Diversity meaning the diversity in the ancestry of the students.
+
+The datapoints are either from 1994-1995 or 2016-2017 school year.
+
+First, look at the number of students by state and by school year.
+
+```{r}
+school_diversity %>%
+  group_by(ST, SCHOOL_YEAR) %>%
+  summarize(all = sum(Total)) %>%
+  ggplot(aes(ST,all,fill = SCHOOL_YEAR)) + geom_bar(stat = "identity", position = "dodge") +
+  scale_y_continuous(labels = scales::comma_format()) + 
+  ggtitle("The total number of students by state and school year") +
+  xlab("State") +
+  ylab("Number of students") +
+  labs(fill = "School year") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+California and Texas have the largest amount of students in the dataset, which is not surprising given that these are the most populous states of the USA.
+
+Texas also shows the highest growth in the number of students, which again parallels demographics data not analysed here (the population of Texas increased by more than 10 million since 1990).
+
+It should also be noted that there is no data from 1994-1995 from Idaho.
+
+We should check if there is any visible association between the locale of the school and its diversity.
+
+```{r}
+school_diversity %>%
+  group_by(d_Locale_Txt, SCHOOL_YEAR) %>%
+  count(diverse) %>%
+  ggplot(aes(d_Locale_Txt,n,fill = diverse)) + geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("The number of schools with a given diversity rating from a locale type") +
+  xlab("Locale") +
+  ylab("Number of schools") +
+  labs(fill = "Diversity") + 
+  theme(axis.text.x = element_text(angle = 90,vjust=0.3,hjust=0)) +
+  facet_grid(~SCHOOL_YEAR)
+```
+
+It seems that in rural areas most of the schools are extremely undiverse, but this changed considerably in the 20 years between the two rounds of data collection.
+
+Let's see how ethnic diversity changed in some states' schools. 
+
+```{r}
+school_diversity %>%
+  select(ST,SCHOOL_YEAR,AIAN, Asian, Black, Hispanic, White, Multi) %>%
+  gather(key = "Ethnicity", value = "Eth_prop",-ST,-SCHOOL_YEAR) %>%
+  group_by(ST,SCHOOL_YEAR,Ethnicity) %>%
+  summarise(MeanEth_prop = mean(Eth_prop)) %>%
+  filter(ST == "TX") %>%
+  ggplot(aes(x="",y=MeanEth_prop,fill=Ethnicity)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  facet_grid(~SCHOOL_YEAR) +
+  xlab("") +
+  ylab("Mean proportion of ethnicities") +
+  ggtitle("How did ethnic diversity change in Texan schools?")
+```
+
+The proportion of Hispanic students increased considerably in Texas.
+
+```{r}
+school_diversity %>%
+  select(ST,SCHOOL_YEAR,AIAN, Asian, Black, Hispanic, White, Multi) %>%
+  gather(key = "Ethnicity", value = "Eth_prop",-ST,-SCHOOL_YEAR) %>%
+  group_by(ST,SCHOOL_YEAR,Ethnicity) %>%
+  summarise(MeanEth_prop = mean(Eth_prop)) %>%
+  filter(ST == "CA") %>%
+  ggplot(aes(x="",y=MeanEth_prop,fill=Ethnicity)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  facet_grid(~SCHOOL_YEAR) +
+  xlab("") +
+  ylab("Mean proportion of ethnicities") +
+  ggtitle("How did ethnic diversity change in California schools?")
+```
+
+The proportion of Hispanic students also increased in California. This may be due to immigration from Central and South America.
+
+```{r}
+school_diversity %>%
+  select(ST,SCHOOL_YEAR,AIAN, Asian, Black, Hispanic, White, Multi) %>%
+  gather(key = "Ethnicity", value = "Eth_prop",-ST,-SCHOOL_YEAR) %>%
+  group_by(ST,SCHOOL_YEAR,Ethnicity) %>%
+  summarise(MeanEth_prop = mean(Eth_prop)) %>%
+  filter(ST == "NY") %>%
+  ggplot(aes(x="",y=MeanEth_prop,fill=Ethnicity)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  facet_grid(~SCHOOL_YEAR) +
+  xlab("") +
+  ylab("Mean proportion of ethnicities") +
+  ggtitle("How did ethnic diversity change in New York schools?")
+```
+
+The proportion of Hispanic students also seem to have grown in New York.
+
+## Hypothesis testing
+
+I hypothesize that the rate of Black students increased from the 1994-1995 to the 2016-2017 school years.
+Since the distributions are not normal, but the homoscedasticity is not violated, Wilcoxon test is applied.
+
+```{r}
+library(nortest)
+library(car)
+black_st94 <- school_diversity %>%
+  filter(SCHOOL_YEAR == "1994-1995") %>%
+  select(LEAID,ST,Black)
+
+black_st16 <- school_diversity %>%
+  filter(SCHOOL_YEAR == "2016-2017") %>%
+  select(LEAID,ST,Black)
+
+
+unp_rows <- anti_join(black_st94,black_st16, by = "LEAID")
+black_st94 <- anti_join(black_st94,unp_rows, by = "LEAID")
+unp_rows <- anti_join(black_st16,black_st94, by = "LEAID")
+black_st16 <- anti_join(black_st16,unp_rows, by = "LEAID")
+
+ad.test(black_st94$Black)
+ad.test(black_st16$Black)
+
+black_st94$Year <- "1994"
+black_st16$Year <- "2016"
+pdata <- full_join(black_st94,black_st16)
+pdata <- pdata %>%
+  group_by(ST,Year) %>%
+  summarize(mean = mean(Black))
+
+leveneTest(mean~Year,pdata)
+
+wilcox.test(black_st94$Black, black_st16$Black, paired = TRUE)
+```
+
+```{r}
+
+
+ggplot(pdata, aes(x=Year, y=mean)) + 
+  geom_jitter(width=0.3, alpha=0.2) +
+  stat_summary(geom = "errorbar", fun.data = mean_se, width = 0.2) +
+  stat_summary(geom = "point",fun.y = "mean",col = "black",size = 2,shape = 16) +
+  stat_summary(fun.y=mean, colour="black", geom="text", show.legend = FALSE, 
+               vjust=-3.0, aes( label=round(..y.., digits=3))) + 
+  ggtitle("Proportion of black students by year") +
+  xlab("") +
+  ylab("")
+
+```
+The Wilcoxon test is significant (p < 0,001). The plot shows that the rate of Black students dropped by the 2016-2017 school year, compared to the 1994-1995 school year (10.891 vs. 10.571), the the result is reverse.
+It means that the proportion of Black students decreased in 12 years in schools in the USA, which might indicate that the rate of other ethnic groups increased.
+...
