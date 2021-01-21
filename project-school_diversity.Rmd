@@ -8,8 +8,8 @@ editor_options:
 
 # School diversity in the USA: 1994 - 2016
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidytuesdayR)
 library(viridis)
